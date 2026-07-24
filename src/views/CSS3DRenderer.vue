@@ -1,11 +1,14 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { Tween, Easing, Group } from '@tweenjs/tween.js'
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js'
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
 import InfoPanel from '../components/InfoPanel.vue'
 import ControlPanel from '../components/ControlPanel.vue'
+import FeaturePanel from '../components/FeaturePanel.vue'
+import ElementDetail from '../components/ElementDetail.vue'
+import { ELEMENTS, getElementDetail, searchElements } from '../utils/elementData.js'
 
 const containerRef = ref(null)
 const tweenGroup = new Group()
@@ -33,6 +36,150 @@ const currentModelLayouts = computed(() => css3dModels[currentModel.value]?.layo
 
 function onTogglePlay(val) { playing.value = val }
 function onUpdateSpeed(val) { speed.value = val }
+
+// ── 搜索与聚焦 ──
+const searchQuery = ref('')
+const searchResults = ref([])
+const focusedIndex = ref(-1)
+const detailElement = ref(null)
+const searchHighlightIdx = ref(-1) // 搜索结果列表中当前高亮的序号
+
+// 搜索结果列表自动滚动到高亮项（必须在 searchHighlightIdx 声明之后）
+watch(searchHighlightIdx, async () => {
+  await nextTick()
+  const active = document.querySelector('.search-result-item.active')
+  if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+})
+
+function focusElement(index) {
+  if (index < 0 || index >= objects.length) return
+  if (currentLayout.value !== 'table') switchLayout('table')
+
+  focusedIndex.value = index
+
+  // 获取元素实际世界坐标（在 scene 空间下）
+  const worldPos = new THREE.Vector3()
+  objects[index].getWorldPosition(worldPos)
+
+  // 计算当前相机到目标的方向，用于保持相机在该方向 500 单位处
+  const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize()
+
+  const startCam = camera.position.clone()
+  const startCtrl = controls.target.clone()
+  const endCtrl = worldPos.clone()
+  const endCam = worldPos.clone().add(camDir.multiplyScalar(500))
+
+  // 使用主 tweenGroup 确保 animate 循环中 tweenGroup.update() 驱动动画
+  new Tween({ t: 0 }, tweenGroup)
+    .to({ t: 1 }, 600)
+    .easing(Easing.Quadratic.InOut)
+    .onUpdate((obj) => {
+      camera.position.lerpVectors(startCam, endCam, obj.t)
+      controls.target.lerpVectors(startCtrl, endCtrl, obj.t)
+    })
+    .onComplete(() => updateElementHighlight(index))
+    .start()
+}
+
+let lastHighlightIndex = -1
+function updateElementHighlight(index) {
+  // 清除上一次高亮
+  if (lastHighlightIndex >= 0 && lastHighlightIndex < objects.length) {
+    const el = objects[lastHighlightIndex].element
+    el.style.boxShadow = ''
+    el.style.borderColor = ''
+    el.classList.remove('breathing')
+  }
+  // 设置新高亮 + 呼吸灯
+  if (index >= 0 && index < objects.length) {
+    const el = objects[index].element
+    el.style.boxShadow = '0 0 24px rgba(34, 211, 238, 0.9), 0 0 48px rgba(34, 211, 238, 0.4)'
+    el.style.borderColor = 'rgba(34, 211, 238, 0.8)'
+    el.classList.add('breathing')
+  }
+  lastHighlightIndex = index
+}
+
+function onSearchInput() {
+  const q = searchQuery.value.trim()
+  if (!q) {
+    searchResults.value = []
+    searchHighlightIdx.value = -1
+    clearFocus()
+    return
+  }
+  searchResults.value = searchElements(q)
+  searchHighlightIdx.value = 0
+  if (searchResults.value.length > 0) {
+    focusElement(searchResults.value[0].index)
+  }
+}
+
+function onSearchKeydown(e) {
+  if (searchResults.value.length === 0) return
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    const next = Math.min(searchHighlightIdx.value + 1, searchResults.value.length - 1)
+    searchHighlightIdx.value = next
+    focusElement(searchResults.value[next].index)
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    const prev = Math.max(searchHighlightIdx.value - 1, 0)
+    searchHighlightIdx.value = prev
+    focusElement(searchResults.value[prev].index)
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    const idx = searchHighlightIdx.value
+    if (idx >= 0 && idx < searchResults.value.length) {
+      focusElement(searchResults.value[idx].index)
+    }
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    clearFocus()
+  }
+}
+
+function onSearchResultClick(index) {
+  const idx = searchResults.value.findIndex(r => r.index === index)
+  if (idx >= 0) searchHighlightIdx.value = idx
+  focusElement(index)
+}
+
+function clearFocus() {
+  updateElementHighlight(-1)
+  focusedIndex.value = -1
+  searchHighlightIdx.value = -1
+  searchQuery.value = ''
+  searchResults.value = []
+
+  // 重置旋转中心
+  rotationGroup.position.set(0, 0, 0)
+
+  const startCam = camera.position.clone()
+  const startCtrl = controls.target.clone()
+  const frontDir = new THREE.Vector3(0, 0, 1).applyQuaternion(rotationGroup.quaternion)
+  const endCam = frontDir.clone().multiplyScalar(3000)
+  const endCtrl = new THREE.Vector3(0, 0, 0)
+
+  new Tween({ t: 0 }, tweenGroup)
+    .to({ t: 1 }, 500)
+    .easing(Easing.Quadratic.InOut)
+    .onUpdate((obj) => {
+      camera.position.lerpVectors(startCam, endCam, obj.t)
+      controls.target.lerpVectors(startCtrl, endCtrl, obj.t)
+    })
+    .start()
+}
+
+function onElementClick(index) {
+  detailElement.value = getElementDetail(index)
+  focusElement(index)
+}
+
+function onDetailClose() {
+  detailElement.value = null
+  clearFocus()
+}
 
 const table = [
   'H', 'Hydrogen', '1.00794', 1, 1, 'He', 'Helium', '4.002602', 18, 1,
@@ -155,6 +302,7 @@ function init() {
     details.innerHTML = table[i + 1] + '<br>' + table[i + 2]
     element.appendChild(details)
 
+    const idx = objects.length
     const objectCSS = new CSS3DObject(element)
     objectCSS.position.x = Math.random() * 4000 - 2000
     objectCSS.position.y = Math.random() * 4000 - 2000
@@ -210,7 +358,40 @@ function init() {
   renderer.setSize(w, h)
   renderer.domElement.style.position = 'absolute'
   renderer.domElement.style.top = '0'
+  renderer.domElement.style.left = '0'
   container.appendChild(renderer.domElement)
+
+  // 使用 3D 坐标投影检测元素点击（绕过 CSS3DRenderer 的 pointer-events 限制）
+  const ndc = new THREE.Vector2()
+  renderer.domElement.addEventListener('click', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect()
+    ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+
+    let closestIdx = -1
+    let closestDist = Infinity
+    const worldPos = new THREE.Vector3()
+
+    for (let i = 0; i < objects.length; i++) {
+      objects[i].getWorldPosition(worldPos)
+      const projected = worldPos.clone().project(camera)
+      // 元素在相机后方或超出视口则跳过
+      if (projected.z > 1 || projected.z < -1) continue
+      if (Math.abs(projected.x) > 1.5 || Math.abs(projected.y) > 1.5) continue
+      const dx = projected.x - ndc.x
+      const dy = projected.y - ndc.y
+      const dist = dx * dx + dy * dy
+      if (dist < closestDist) {
+        closestDist = dist
+        closestIdx = i
+      }
+    }
+
+    // 阈值：NDC 空间距离平方 < 0.02（适配不同缩放距离）
+    if (closestIdx >= 0 && closestDist < 0.02) {
+      onElementClick(closestIdx)
+    }
+  })
 
   // Controls
   controls = new TrackballControls(camera, renderer.domElement)
@@ -259,12 +440,21 @@ function animate() {
   renderer.render(scene, camera)
 }
 
+function onGlobalKeydown(e) {
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault()
+    playing.value = !playing.value
+  }
+}
+
 onMounted(() => {
   init()
   animate()
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
   if (animationId) cancelAnimationFrame(animationId)
   controls?.dispose()
   // CSS3DRenderer 没有 dispose 方法，只需移除 DOM
@@ -281,25 +471,50 @@ onBeforeUnmount(() => {
   <div class="page">
     <InfoPanel>
       <template #header>
-        <h2>🧪 CSS3D 渲染</h2>
+        <h2>🧪 CSS3D 渲染 · 元素周期表</h2>
         <p><strong>核心原理：</strong>使用 Three.js CSS3DRenderer 将 HTML 元素渲染到 3D 空间，通过 CSS3DObject 将 DOM 元素映射为 3D 物体，支持轨道交互与布局动画。</p>
       </template>
-      <div class="features">
-        <span>✓ CSS3DRenderer — HTML 元素的 3D 渲染器</span>
-        <span>✓ CSS3DObject — 将 DOM 元素包裹为 3D 物体</span>
-        <span>✓ TrackballControls — 自由轨道控制</span>
-        <span>✓ TWEEN — 平滑布局过渡动画</span>
+      <div class="info-grid">
+        <div class="info-section">
+          <div class="info-section-title">🎮 鼠标操作</div>
+          <div class="info-item"><kbd>拖拽</kbd> 旋转视角</div>
+          <div class="info-item"><kbd>滚轮</kbd> 缩放画面</div>
+          <div class="info-item"><kbd>右键拖拽</kbd> 平移画面</div>
+          <div class="info-item"><kbd>点击卡片</kbd> 查看元素详情</div>
+        </div>
+        <div class="info-section">
+          <div class="info-section-title">⌨ 快捷键</div>
+          <div class="info-item"><kbd>Space</kbd> 暂停 / 恢复旋转</div>
+          <div class="info-item"><kbd>Esc</kbd> 清除搜索 & 重置视角</div>
+          <div class="info-item"><kbd>↑ ↓</kbd> 切换搜索结果</div>
+          <div class="info-item"><kbd>Enter</kbd> 定位选中元素</div>
+        </div>
+        <div class="info-section">
+          <div class="info-section-title">🔍 搜索</div>
+          <div class="info-item">输入元素<strong>符号</strong>（如 Fe）</div>
+          <div class="info-item">输入<strong>中文名</strong>（如 铁）</div>
+          <div class="info-item">输入<strong>英文名</strong>（如 Iron）</div>
+          <div class="info-item">点击搜索结果定位元素</div>
+        </div>
+        <div class="info-section">
+          <div class="info-section-title">🎯 布局</div>
+          <div class="info-item">📋 Table — 周期表排列</div>
+          <div class="info-item">🌐 Sphere — 球面分布</div>
+          <div class="info-item">🌀 Helix — 螺旋排列</div>
+          <div class="info-item">📦 Grid — 网格分布</div>
+        </div>
       </div>
-      <div class="controls-row" style="margin-top:0.4rem;">
+      <div class="model-select-row">
+        <span class="model-select-label">📦 模型：</span>
         <button
           v-for="(info, key) in css3dModels"
           :key="key"
-          class="btn"
+          class="model-btn"
           :class="{ active: currentModel === key }"
           @click="currentModel = key"
         >{{ info.name }}</button>
       </div>
-      <p class="hint">🖱 鼠标拖拽旋转 · 滚轮缩放</p>
+      <p class="hint">💡 提示：搜索元素 → 自动定位 → 点击卡片 → 查看详情</p>
     </InfoPanel>
 
     <ControlPanel :fps="fps" :memory="memory" :objectCount="objects.length" @togglePlay="onTogglePlay" @updateSpeed="onUpdateSpeed">
@@ -319,6 +534,51 @@ onBeforeUnmount(() => {
       </template>
     </ControlPanel>
 
+    <FeaturePanel title="🧪 元素搜索" :enabled="currentModel === 'periodic-table'">
+      <div class="search-section">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            v-model="searchQuery"
+            class="search-input"
+            placeholder="输入符号或名称搜索元素…"
+            @input="onSearchInput"
+            @keydown="onSearchKeydown"
+          />
+          <button v-if="searchQuery" class="search-clear" @click="clearFocus" title="清除搜索">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- 搜索匹配结果 -->
+        <div v-if="searchResults.length > 0" class="search-results">
+          <div
+            v-for="(r, idx) in searchResults.slice(0, 10)"
+            :key="r.index"
+            class="search-result-item"
+            :class="{ active: searchHighlightIdx === idx }"
+            @click="onSearchResultClick(r.index)"
+          >
+            <span class="sr-symbol">{{ r.detail.symbol }}</span>
+            <span class="sr-name">{{ r.detail.chineseName }}</span>
+            <span class="sr-enname">{{ r.detail.name }}</span>
+            <span class="sr-number">#{{ r.detail.number }}</span>
+          </div>
+          <div v-if="searchResults.length > 10" class="search-more">…还有 {{ searchResults.length - 10 }} 个结果</div>
+        </div>
+
+        <div v-if="searchQuery && searchResults.length === 0" class="search-no-result">
+          未找到匹配「{{ searchQuery }}」的元素
+        </div>
+      </div>
+    </FeaturePanel>
+
+    <ElementDetail :element="detailElement" @close="onDetailClose" />
+
     <div ref="containerRef" class="canvas-container"></div>
   </div>
 </template>
@@ -333,7 +593,9 @@ onBeforeUnmount(() => {
   font-family: Helvetica, sans-serif;
   text-align: center;
   line-height: normal;
-  cursor: default;
+  cursor: pointer;
+  pointer-events: auto !important;
+  user-select: none;
 }
 .element:hover {
   box-shadow: 0px 0px 12px rgba(0, 255, 255, 0.75);
@@ -364,9 +626,237 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: rgba(127, 255, 255, 0.75);
 }
+
+/* 呼吸灯动画 */
+.element.breathing {
+  animation: breathe 1.5s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.6), 0 0 24px rgba(34, 211, 238, 0.3);
+    border-color: rgba(34, 211, 238, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.9), 0 0 48px rgba(34, 211, 238, 0.6), 0 0 72px rgba(34, 211, 238, 0.2);
+    border-color: rgba(34, 211, 238, 0.9);
+  }
+}
 </style>
 
 <style scoped>
 .page { display: flex; flex-direction: column; height: 100vh; background: #0a0a1a; }
 .canvas-container { width: 100%; height: 100%; position: relative; }
+
+/* 搜索面板样式 */
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  transition: border-color 0.2s;
+}
+.search-input-wrapper:focus-within {
+  border-color: rgba(34, 211, 238, 0.4);
+}
+.search-icon {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.25);
+  margin-right: 0.5rem;
+}
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #e0e0f0;
+  font-size: 0.85rem;
+  outline: none;
+  font-family: inherit;
+}
+.search-input::placeholder { color: rgba(255, 255, 255, 0.25); }
+.search-clear {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.search-clear:hover { color: #fff; background: rgba(255, 255, 255, 0.15); }
+
+.search-results {
+  margin-top: 0.5rem;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+.search-results::-webkit-scrollbar { width: 3px; }
+.search-results::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.search-result-item:hover { background: rgba(255, 255, 255, 0.06); }
+.search-result-item.active {
+  background: rgba(34, 211, 238, 0.1);
+}
+.sr-symbol {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #22d3ee;
+  min-width: 2em;
+}
+.sr-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e0e0f0;
+}
+.sr-enname {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.35);
+  flex: 1;
+}
+.sr-number {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.25);
+  font-variant-numeric: tabular-nums;
+}
+
+.search-more {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.25);
+  padding: 0.3rem 0.5rem;
+  font-style: italic;
+}
+.search-no-result {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 0.5rem 0;
+  text-align: center;
+}
+
+/* 信息面板网格布局 */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.info-section {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+}
+.info-section-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.3px;
+}
+.info-item {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.65;
+}
+.info-item kbd {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 0.68rem;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 1.4em;
+  text-align: center;
+}
+.info-item strong {
+  color: #22d3ee;
+  font-weight: 600;
+}
+
+.hint {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.3);
+  margin-top: 0.5rem;
+  text-align: center;
+  font-style: italic;
+}
+
+/* 布局按钮 */
+.layout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.layout-btn {
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.layout-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.layout-btn.active {
+  color: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.4);
+}
+
+/* 模型选择按钮 */
+.model-select-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.model-select-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+}
+.model-btn {
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.model-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.model-btn.active {
+  color: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.4);
+  background: rgba(34, 211, 238, 0.08);
+}
 </style>

@@ -82,16 +82,18 @@ watch(() => props.lightSources, (val) => {
 <template>
   <div class="control-panel-wrapper" :class="{ expanded }">
     <!-- 展开按钮（面板关闭时显示） -->
-    <button v-show="!expanded" class="ctrl-toggle" @click="expanded = true" title="展开控制">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <line x1="4" y1="6" x2="20" y2="6" />
-        <line x1="4" y1="12" x2="20" y2="12" />
-        <line x1="4" y1="18" x2="20" y2="18" />
-      </svg>
-    </button>
+    <Transition name="pop-btn">
+      <button v-show="!expanded" class="ctrl-toggle" @click="expanded = true" title="展开控制">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="4" y1="6" x2="20" y2="6" />
+          <line x1="4" y1="12" x2="20" y2="12" />
+          <line x1="4" y1="18" x2="20" y2="18" />
+        </svg>
+      </button>
+    </Transition>
 
     <!-- 面板（无关闭按钮，点击外部关闭） -->
-    <Transition name="slide">
+    <Transition name="pop-panel">
       <div v-show="expanded" ref="panelRef" class="control-panel">
         <div class="panel-header">
           <h3>⚙ 控制面板</h3>
@@ -296,8 +298,12 @@ watch(() => props.lightSources, (val) => {
   padding: 0;
   color: #d0d0e0;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  margin-bottom: 48px;
-  overflow: hidden;
+  margin-bottom: 0;
+  overflow: visible;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform-origin: bottom right;
 }
 
 .section-fixed {
@@ -578,15 +584,56 @@ watch(() => props.lightSources, (val) => {
 }
 
 /* Transition */
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.3s ease;
+.control-panel {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform-origin: bottom right;
+}
+.pop-btn-leave-active {
+  transition: all 0.25s ease;
+}
+.pop-btn-enter-active {
+  transition: all 0.25s ease;
+}
+.pop-btn-leave-to {
+  opacity: 0;
+  transform: scale(0.5);
+}
+.pop-btn-enter-from {
+  opacity: 0;
+  transform: scale(0.5);
+}
+.pop-panel-enter-active {
+  animation: popIn 0.4s ease;
+}
+.pop-panel-leave-active {
+  animation: popOut 0.3s ease;
 }
 
-.slide-enter-from,
-.slide-leave-to {
-  opacity: 0;
-  transform: translateY(-10px) scale(0.96);
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes popOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0);
+  }
 }
 
 /* 响应式 */
