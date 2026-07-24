@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|-----|
 | **名称** | `procedural-modeling-tauri` |
-| **版本** | `0.1.0` |
+| **版本** | `0.2.0` |
 | **标识符** | `com.anlzou.procedural` |
 | **类型** | 跨平台桌面应用 |
 
@@ -254,6 +254,9 @@ pnpm tauri android build --target aarch64 --debug
 # 通过 ADB 安装
 adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
 ```
+
+#### 6. 手动签名
+参考 [APKSIGNER.md](APKSIGNER.md)
 
 > **内存不足怎么办？** 如果编译过程中被 OOM Killer 终止，可以通过 `CARGO_BUILD_JOBS=1` 限制并行编译数，并只构建 `--target aarch64` 单架构。
 
