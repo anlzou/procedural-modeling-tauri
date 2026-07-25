@@ -60,11 +60,14 @@ procedural-modeling-tauri/
 │   │
 │   ├── components/             # 共享组件
 │   │   ├── ControlPanel.vue    # 控制面板 (FPS/光源/动画)
-│   │   └── InfoPanel.vue       # 信息面板
+│   │   ├── InfoPanel.vue       # 信息面板
+│   │   ├── FeaturePanel.vue    # 功能面板 (元素搜索)
+│   │   └── ElementDetail.vue   # 元素详情弹窗
 │   │
 │   ├── utils/                  # 工具库
 │   │   ├── lsystem.js          # L-System 生成器
-│   │   └── marchingCubes.js    # Marching Cubes 算法
+│   │   ├── marchingCubes.js    # Marching Cubes 算法
+│   │   └── elementData.js      # 118 种化学元素数据
 │   │
 │   ├── shaders/                # GLSL 着色器
 │   │   ├── raymarching.frag    # 光线步进片段着色器
@@ -144,12 +147,10 @@ procedural-modeling-tauri/
   - 🧪 **CSS3D 渲染** — 元素周期表 3D 展示，支持 TABLE/SPHERE/HELIX/GRID 四种布局切换
 - **控制面板** — FPS/内存监控、光源控制、播放/暂停/调速、面板透明度调节
 - **信息面板** — 各 Demo 的原理说明和交互提示
+- **功能面板** — CSS3D 页面元素搜索、关键字筛选
+- **元素详情弹窗** — 点击元素卡片查看完整信息（分类、电子排布、熔点/沸点等）
+- **呼吸灯高亮** — 搜索聚焦时元素卡片自动呼吸动画
 - **路由导航** — Hash 路由 + 返回按钮
-
-### ⏳ 待实现
-- [ ] 模型导出功能
-- [ ] Rust 后端高性能建模算法
-- [ ] 更多程序化生成模式
 
 ---
 
@@ -234,31 +235,52 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 export ANDROID_HOME="$HOME/Android/Sdk"
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.3.11579264"
 
-# 仅构建 arm64 架构（推荐，节省内存）
+# 查看设备架构，构建对应版本（避免 INSTALL_FAILED_NO_MATCHING_ABIS）
+adb shell getprop ro.product.cpu.abi  # 输出示例: armeabi-v7a
+```
+
+> **开发调试** —— `--debug` 自动签名，开箱即用：
+
+```bash
+# 仅构建 arm64（推荐，节省内存）
+JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" \
+  CARGO_BUILD_JOBS=1 \
+  pnpm tauri android build --target aarch64 --debug
+
+# 构建后直接安装
+adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+
+# 一行命令：构建 + 安装
+pnpm tauri android build --target aarch64 --debug && \
+  adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+```
+
+> **正式发布** —— Release 版需先签名再安装：
+
+```bash
+# 1. 构建 Release APK（仅 arm64）
 JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" \
   CARGO_BUILD_JOBS=1 \
   pnpm tauri android build --target aarch64
 
-# 构建全部 4 个架构（arm64/armv7/x86/x86_64）
+# 2. 用 debug 密钥签名（开发测试）
+apksigner sign --ks ~/.android/debug.keystore \
+  --ks-key-alias androiddebugkey \
+  --ks-pass pass:android --key-pass pass:android \
+  src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+
+# 3. 重命名并安装
+mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
+   src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+
+# 构建全部 4 个架构（arm64/armv7/x86/x86_64，耗时久、内存需求大）
 JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" \
   CARGO_BUILD_JOBS=2 \
   pnpm tauri android build
 ```
 
-#### 5. 安装到设备
-
-```bash
-# 调试版 APK（自动签名）
-pnpm tauri android build --target aarch64 --debug
-
-# 通过 ADB 安装
-adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
-```
-
-#### 6. 手动签名
-参考 [APKSIGNER.md](APKSIGNER.md)
-
-> **内存不足怎么办？** 如果编译过程中被 OOM Killer 终止，可以通过 `CARGO_BUILD_JOBS=1` 限制并行编译数，并只构建 `--target aarch64` 单架构。
+> **内存不足怎么办？** 使用 `CARGO_BUILD_JOBS=1` 限制并行编译，并只构建 `--target aarch64` 单架构。
 
 ---
 
