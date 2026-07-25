@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|-----|
 | **名称** | `procedural-modeling-tauri` |
-| **版本** | `0.2.0` |
+| **版本** | [`0.2.1`](CHANGELOG.md) |
 | **标识符** | `com.anlzou.procedural` |
 | **类型** | 跨平台桌面应用 |
 
@@ -192,6 +192,32 @@ pnpm tauri build
 | Rust Android 目标 | aarch64-linux-android 等 | Rust 交叉编译目标 |
 
 > ⚠️ **JDK 版本注意**：Gradle 8.x **不兼容 Java 26**，请使用 **Java 17 或 21**。建议通过 [sdkman](https://sdkman.io/)（Linux）或手动下载安装。
+>
+> 💡 sdkman 用户注意：`sdk install java 17.0.20-amzn` 后还需执行 `sdk default java 17.0.20-amzn`，否则新终端会使用最新版（如 Java 26）导致 Gradle 报错 `26.0.1`。
+
+### 环境变量配置
+
+构建 Android APK 需要以下环境变量。推荐写入 `~/.bashrc` 永久生效：
+
+```bash
+# ========== Android SDK / NDK ==========
+export ANDROID_HOME="$HOME/Android/Sdk"
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.3.11579264"
+
+# ========== Android 构建工具（apksigner 等）加入 PATH ==========
+export PATH="$ANDROID_HOME/build-tools/35.0.0:$PATH"
+
+# ========== Java 17（通过 sdkman 安装后自动设置 JAVA_HOME）==========
+# 注意：sdkman 默认启用最新版（如 Java 26），但 Gradle 8.x 不兼容 Java 26
+# 必须使用 sdk use 或 sdk default 指定 Java 17
+export JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+# ========== Rust 编译优化（低内存机器建议 1，高性能机器可 2-4）==========
+export CARGO_BUILD_JOBS=1
+```
+
+> 修改后执行 `source ~/.bashrc` 立即生效。也可在单条命令前临时指定（如 `JAVA_HOME=... CARGO_BUILD_JOBS=1 pnpm tauri android build`）。
 
 ### Linux 环境
 
@@ -236,21 +262,34 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 #### 4. 构建 APK
 
 ```bash
-# 设置环境变量（可加入 ~/.bashrc）
-export ANDROID_HOME="$HOME/Android/Sdk"
-export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.3.11579264"
-
 # 查看设备架构，构建对应版本（避免 INSTALL_FAILED_NO_MATCHING_ABIS）
 adb shell getprop ro.product.cpu.abi  # 输出示例: armeabi-v7a
 ```
 
-> **开发调试** —— `--debug` 自动签名，开箱即用：
+#### `--target` 参数说明
+
+| 参数 | 产物 | 兼容设备 | 编译时间 |
+|------|------|---------|---------|
+| `--target aarch64` | **单个 APK**，仅 arm64 | 仅 arm64-v8a 设备（主流手机/平板） | ✅ 快 |
+| `--target armv7` | **单个 APK**，仅 armv7 | 仅 armeabi-v7a 设备（旧手机/Wear OS 手表） | ✅ 快 |
+| `--target aarch64 armv7` | **一个 APK，双架构** | ✅ arm64 + armv7 都能装 | ⚠️ 较慢 |
+| `--target aarch64 armv7 x86_64 i686` | **一个 APK，全架构** | 所有 Android 设备 | 🔴 最慢，内存需求大 |
+
+> 多架构时编译为一个 APK，两个架构的 `.so` 都打包在内，安装时 Android 自动选择匹配的。`--debug` 版输出文件位置不变：`app-universal-debug.apk`。
+
+> 以下命令假设**环境变量已正确配置**（参见上一节），否则请在命令前临时指定：
+> `JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" CARGO_BUILD_JOBS=1 pnpm tauri android build ...`
+
+---
+
+#### 开发调试（`--debug` 自动签名，开箱即用）
 
 ```bash
-# 仅构建 arm64（推荐，节省内存）
-JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" \
-  CARGO_BUILD_JOBS=1 \
-  pnpm tauri android build --target aarch64 --debug
+# 仅构建 arm64（推荐，节省内存和编译时间）
+pnpm tauri android build --target aarch64 --debug
+
+# 构建 armv7（Wear OS 手表等旧设备）
+pnpm tauri android build --target armv7 --debug
 
 # 构建后直接安装
 adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
@@ -260,16 +299,20 @@ pnpm tauri android build --target aarch64 --debug && \
   adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
 
-> **正式发布** —— Release 版需先签名再安装：
+---
+
+#### 正式发布（Release 版需手动签名）
+
+Release 版 APK 未签名，需用密钥签名后方可安装：
 
 ```bash
 # 1. 构建 Release APK（仅 arm64）
-JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" \
-  CARGO_BUILD_JOBS=1 \
-  pnpm tauri android build --target aarch64
+pnpm tauri android build --target aarch64
 
-# 2. 用 debug 密钥签名（开发测试）
-apksigner sign --ks ~/.android/debug.keystore \
+# 2. 用 debug 密钥签名（开发测试用）
+#    注意：使用完整路径，apksigner 位于 $ANDROID_HOME/build-tools/35.0.0/
+$ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+  --ks ~/.android/debug.keystore \
   --ks-key-alias androiddebugkey \
   --ks-pass pass:android --key-pass pass:android \
   src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
@@ -280,9 +323,7 @@ mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-r
 adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
 
 # 构建全部 4 个架构（arm64/armv7/x86/x86_64，耗时久、内存需求大）
-JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" \
-  CARGO_BUILD_JOBS=2 \
-  pnpm tauri android build
+pnpm tauri android build
 ```
 
 > **内存不足怎么办？** 使用 `CARGO_BUILD_JOBS=1` 限制并行编译，并只构建 `--target aarch64` 单架构。
@@ -347,7 +388,9 @@ pnpm tauri android build
 > ```cmd
 > set ANDROID_HOME=C:\Android\Sdk
 > set ANDROID_NDK_HOME=C:\Android\Sdk\ndk\26.3.11579264
+> set JAVA_HOME=C:\Program Files\Amazon Corretto\jdk17.0.x...
 > set CARGO_BUILD_JOBS=2
+> set PATH=%PATH%;%ANDROID_HOME%\build-tools\35.0.0
 > pnpm tauri android build
 > ```
 
