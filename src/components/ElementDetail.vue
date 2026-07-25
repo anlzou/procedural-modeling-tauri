@@ -35,9 +35,6 @@ onBeforeUnmount(() => {
     <Transition name="detail-fade">
       <div v-if="element" class="detail-overlay">
         <div ref="panelRef" class="detail-panel">
-          <button class="detail-close" @click="emit('close')" title="关闭">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
 
           <!-- 头部：原子序数 + 符号 + 名称 -->
           <div class="detail-head">

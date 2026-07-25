@@ -151,6 +151,11 @@ procedural-modeling-tauri/
 - **元素详情弹窗** — 点击元素卡片查看完整信息（分类、电子排布、熔点/沸点等）
 - **呼吸灯高亮** — 搜索聚焦时元素卡片自动呼吸动画
 - **路由导航** — Hash 路由 + 返回按钮
+- **首页滚动记忆** — 离开首页自动保存滚动位置，返回后恢复
+- **曲面自动居中** — 参数化曲面根据包围盒自动偏移，确保所有模型居中显示
+- **无关闭按钮设计** — 功能面板 / 元素详情弹窗移除关闭按钮，点击外部即可关闭（简化交互）
+- **响应式面板** — 控制面板全滚动布局（性能监控融入滚动区）、信息面板取消固定/滚动分区、底部功能面板自适应宽度
+- **按钮轮廓移除** — 全局移除 `button:focus-visible` 轮廓、去触控高亮
 
 ---
 
@@ -354,6 +359,44 @@ adb install -r src-tauri\gen\android\app\build\outputs\apk\universal\release\app
 ```
 
 ---
+
+### Wear OS / 旧 WebView 兼容
+
+> ⚠️ **Oppo Watch X 等 Wear OS 手表的 WebView 基于 Chrome 83（2020 年）**，无法解析现代 ES2020+ 语法，导致应用灰屏。
+
+#### vite.config.ts 兼容性配置
+
+`vite.config.ts` 中已设置 `build.target: "es2015"`，将 JS 编译为兼容旧版 WebView 的 ES5 语法：
+
+```ts
+build: {
+  target: "es2015",
+},
+```
+
+> 如遇构建问题，可改用 `chrome83` 等具体浏览器版本作为 target。
+
+#### 构建 armv7 架构（Wear OS）
+
+```bash
+# 构建 armv7 调试版（Oppo Watch X 等 Wear OS 设备）
+JAVA_HOME="$HOME/.sdkman/candidates/java/17.0.20-amzn" \
+  CARGO_BUILD_JOBS=1 \
+  pnpm tauri android build --target armv7 --debug
+
+# 安装到设备
+adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+```
+
+#### 启用 WebView 远程调试
+
+```bash
+# 开启 WebView 调试
+adb shell "echo 'com.anlzou.procedural:chrome' > /data/local/tmp/webview_debugging"
+
+# 电脑 Chrome 访问 chrome://inspect
+# 即可看到手表的 WebView，点击 inspect 查看 Console 错误
+```
 
 ### 输出文件
 

@@ -45,14 +45,6 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
     <!-- 展开态：面板 -->
     <Transition name="pop-panel">
       <div v-show="expanded" ref="panelRef" class="feature-panel">
-        <div class="fp-header">
-          <span class="fp-title">{{ title || '功能面板' }}</span>
-          <button class="fp-close" @click="toggle" title="关闭">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
         <div class="fp-body">
           <slot />
         </div>
@@ -101,8 +93,9 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
 
 .feature-panel {
   pointer-events: auto;
-  min-width: 320px;
-  max-width: 90vw;
+  width: fit-content;
+  min-width: 200px;
+  max-width: min(90vw, 480px);
   background: rgba(10, 10, 20, var(--panel-alpha, 0.6));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -116,52 +109,17 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
   bottom: 0;
 }
 
-.fp-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.7rem 1.2rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-.fp-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #f0f0ff;
-}
-.fp-close {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.3);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  padding: 0;
-  flex-shrink: 0;
-}
-.fp-close:hover { color: rgba(255, 255, 255, 0.6); }
-
 /* 按钮缩放淡出 */
-.pop-btn-leave-active {
-  transition: all 0.25s ease;
-}
+.pop-btn-leave-active,
 .pop-btn-enter-active {
   transition: all 0.25s ease;
 }
-.pop-btn-leave-to {
-  opacity: 0;
-  transform: scale(0.5);
-}
+.pop-btn-leave-to,
 .pop-btn-enter-from {
   opacity: 0;
   transform: scale(0.5);
 }
 
-/* 面板缩放弹出 */
 .pop-panel-enter-active {
   animation: popIn 0.4s ease;
 }
@@ -170,28 +128,13 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
 }
 
 @keyframes popIn {
-  0% {
-    opacity: 0;
-    transform: scale(0);
-  }
-  70% {
-    opacity: 1;
-    transform: scale(1.06);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+  0% { opacity: 0; transform: scale(0); }
+  70% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
 }
 @keyframes popOut {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0);
-  }
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0); }
 }
 
 .fp-body {
@@ -205,6 +148,4 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
 }
 .fp-body::-webkit-scrollbar { width: 4px; }
 .fp-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
-/* 面板弹入动画 */
 </style>

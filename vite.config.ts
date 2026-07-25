@@ -12,6 +12,10 @@ export default defineConfig(() => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
+  // 兼容旧版 WebView（如 Wear OS 手表的 Chrome 83）
+  build: {
+    target: "es2015",
+  },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,

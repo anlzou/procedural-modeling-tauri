@@ -158,6 +158,15 @@ function buildScene(key) {
   // For older versions, we'll create it manually
   const geometry = createParametricGeometry(surface.func, surface.slices, surface.stacks)
 
+  // 居中模型：根据包围盒偏移使几何体中心位于原点
+  geometry.computeBoundingBox()
+  const bb = geometry.boundingBox
+  const center = new THREE.Vector3()
+  if (bb) {
+    center.addVectors(bb.min, bb.max).multiplyScalar(0.5)
+    geometry.translate(-center.x, -center.y, -center.z)
+  }
+
   const material = new THREE.MeshPhysicalMaterial({
     color: surface.color,
     roughness: 0.3,

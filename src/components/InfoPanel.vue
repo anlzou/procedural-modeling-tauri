@@ -39,12 +39,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
           </svg>
         </button>
         <div class="info-panel-body">
-          <div class="info-panel-body-fixed">
-            <slot name="header" />
-          </div>
-          <div class="info-panel-body-scroll">
-            <slot />
-          </div>
+          <slot name="header" />
+          <slot />
         </div>
       </div>
     </Transition>
@@ -105,38 +101,20 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
 }
 
 .info-panel-body {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-}
-.info-panel-body-fixed {
-  flex-shrink: 0;
-}
-.info-panel-body-scroll {
-  flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  min-height: 0;
-  margin-top: 0.5rem;
-  padding-right: 0.25rem;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  flex: 1;
+  min-height: 0;
 }
-.info-panel-body-scroll::-webkit-scrollbar {
+.info-panel-body::-webkit-scrollbar {
   width: 4px;
 }
-.info-panel-body-scroll::-webkit-scrollbar-thumb {
+.info-panel-body::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
-}
-.info-panel-body-scroll::before,
-.info-panel-body-scroll::after {
-  content: '';
-  display: block;
-  height: 0.25rem;
-  flex-shrink: 0;
 }
 
 .info-panel .pin-btn {

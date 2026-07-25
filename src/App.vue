@@ -19,6 +19,16 @@ const route = useRoute()
   </div>
 </template>
 
+<style>
+/* 全局样式：移除所有按钮点击时的 outline 方框 */
+button:focus-visible {
+  outline: none !important;
+}
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+</style>
+
 <style scoped>
 .app-layout {
   width: 100%;

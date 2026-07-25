@@ -106,27 +106,25 @@ watch(() => props.lightSources, (val) => {
           </button>
         </div>
 
-        <!-- 性能监控（固定区域） -->
-        <div class="section section-fixed">
-          <div class="section-title">📊 性能监控</div>
-          <div class="monitor-grid">
-            <div class="monitor-item">
-              <span class="label">FPS</span>
-              <span class="value fps">{{ fps.toFixed(0) }}</span>
-            </div>
-            <div class="monitor-item">
-              <span class="label">内存</span>
-              <span class="value memory">{{ (memory / 1024 / 1024).toFixed(1) }} MB</span>
-            </div>
-            <div class="monitor-item">
-              <span class="label">对象数</span>
-              <span class="value count">{{ objectCount }}</span>
+        <div class="control-panel-scroll">
+          <!-- 性能监控 -->
+          <div class="section">
+            <div class="section-title">📊 性能监控</div>
+            <div class="monitor-grid">
+              <div class="monitor-item">
+                <span class="label">FPS</span>
+                <span class="value fps">{{ fps.toFixed(0) }}</span>
+              </div>
+              <div class="monitor-item">
+                <span class="label">内存</span>
+                <span class="value memory">{{ (memory / 1024 / 1024).toFixed(1) }} MB</span>
+              </div>
+              <div class="monitor-item">
+                <span class="label">对象数</span>
+                <span class="value count">{{ objectCount }}</span>
+              </div>
             </div>
           </div>
-        </div>
-
-        <!-- 可滚动区域 -->
-        <div class="control-panel-scroll">
           <!-- 光源控制 -->
           <div v-if="lightSources" class="section">
             <div class="section-title">💡 光源控制</div>
@@ -304,10 +302,6 @@ watch(() => props.lightSources, (val) => {
   bottom: 0;
   right: 0;
   transform-origin: bottom right;
-}
-
-.section-fixed {
-  flex-shrink: 0;
 }
 
 .control-panel-scroll {

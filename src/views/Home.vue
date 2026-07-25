@@ -1,7 +1,27 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 
 const router = useRouter()
+
+const SCROLL_KEY = 'home_scroll_top'
+
+function saveScroll() {
+  const scrollEl = document.querySelector('.home')
+  if (scrollEl) sessionStorage.setItem(SCROLL_KEY, scrollEl.scrollTop)
+}
+
+onMounted(() => {
+  const saved = sessionStorage.getItem(SCROLL_KEY)
+  if (saved) {
+    const scrollEl = document.querySelector('.home')
+    if (scrollEl) setTimeout(() => { scrollEl.scrollTop = parseInt(saved) }, 0)
+  }
+})
+
+onBeforeRouteLeave(() => {
+  saveScroll()
+})
 
 const paths = [
   {
