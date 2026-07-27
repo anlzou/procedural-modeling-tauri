@@ -7,7 +7,9 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [vue()],
-
+  // ========== 新增：GitHub Pages 部署路径 ==========
+  base: process.env.GITHUB_ACTIONS ? '/procedural-modeling-tauri/' : '/',
+  // ================================================
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
