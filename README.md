@@ -463,3 +463,14 @@ src-tauri/gen/android/app/build/outputs/
 - [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
 - [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
 - [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+
+## 深入学习
+
+### 📚 技术文档
+
+`doc/` 文件夹中收录了本项目相关的核心技术文档，点击标题即可打开：
+
+| 文档 | 简介 |
+|------|------|
+| [`GUI.md`](doc/GUI.md) | 2026 年主流 GUI 开发技术全面对比（Tauri / Qt / Electron / Slint / Flutter 等），按 Rust、Go、C++、Python、JS/TS 分类分析选型建议 |
+| [`WebView.md`](doc/WebView.md) | WebView 核心概念详解：各平台渲染引擎对比（WebView2 / WKWebView / WebKitGTK）、与完整浏览器的差异、IPC 通信机制 |

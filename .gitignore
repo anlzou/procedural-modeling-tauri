@@ -30,3 +30,6 @@ src-tauri/gen/android/.gradle/
 src-tauri/gen/android/local.properties
 *.apk
 *.aab
+
+# Demo files
+demo
